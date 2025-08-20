@@ -765,6 +765,9 @@ class Qwen2SdpaAttention(Qwen2Attention):
             key_states = key_states.contiguous()
             value_states = value_states.contiguous()
 
+        if attention_mask is not None and attention_mask.dtype != torch.bool:
+            attention_mask = attention_mask.to(torch.bool)
+            
         attn_output = torch.nn.functional.scaled_dot_product_attention(
             query_states,
             key_states,
