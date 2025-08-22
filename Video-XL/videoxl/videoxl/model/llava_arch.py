@@ -188,7 +188,12 @@ class LlavaMetaForCausalLM(ABC):
         all_videos_or_images_features = []
 
         for idx, feat in enumerate(per_videos_or_images_features):
+            device = next(self.get_model().mm_projector.parameters()).device
 
+            # to(device)는 synchronous copy로 작동하는데, copy가 끝날 때까지 코드가 멈추게 됨
+            # non_blocking=True 조건을 통해, GPU 연산과 병렬로 copy를 실행함 (조건이 충족되면 병렬 실행)
+            feat = feat.to(device, non_blocking=True) 
+            
             feat = self.get_model().mm_projector(feat)
             # Post pooling
             if idx in video_idx_in_batch:

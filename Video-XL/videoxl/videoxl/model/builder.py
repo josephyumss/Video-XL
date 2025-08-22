@@ -203,8 +203,8 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
 
             elif "qwen" in model_name.lower() or "quyen" in model_name.lower():
                 from videoxl.model.language_model.llava_qwen import LlavaQwenConfig
-
-                tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False)
+                print("[builder.py] [load_pretrained_model] Model Loaded : LlavaQenForCausalLM")
+                tokenizer = AutoTokenizer.from_pretrained(model_path, use_fast=False) # tokenizer load
                 if overwrite_config is not None:
                     llava_cfg = LlavaQwenConfig.from_pretrained(model_path)
                     # rank0_print(f"Overwriting config with {overwrite_config}")
@@ -240,7 +240,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
             from peft import PeftModel
 
             tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False)
-            model = AutoModelForCausalLM.from_pretrained(model_base, torch_dtype=torch.float16, low_cpu_mem_usage=True, device_map="auto")
+            model = AutoModelForCausalLM.from_pretrained(model_base, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True, device_map="auto")
             print(f"Loading LoRA weights from {model_path}")
             model = PeftModel.from_pretrained(model, model_path)
             print(f"Merging weights")
@@ -259,8 +259,8 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
     # rank0_print(f"Model Class: {model.__class__.__name__}")
     image_processor = None
 
+    # image processor load
     if "llava" in model_name.lower() or "videoxl" in model_name.lower() or is_multimodal:
- 
         mm_use_im_start_end = getattr(model.config, "mm_use_im_start_end", False)
         mm_use_im_patch_token = getattr(model.config, "mm_use_im_patch_token", True)
         if mm_use_im_patch_token:
