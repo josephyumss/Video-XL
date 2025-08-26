@@ -54,12 +54,12 @@ from .modeling_beacon import Memory
 from videoxl.train.modeling_utils import optional_grad_ctx, compute_loss, BeaconModelOutput
 
 
-# if is_flash_attn_2_available():
-#     print(f"[llava_qwen.py] flash_attn_2 is available : {is_flash_attn_2_available()}")
-#     from flash_attn import flash_attn_func, flash_attn_varlen_func
-#     from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
+if is_flash_attn_2_available():
+    print(f"[llava_qwen.py] flash_attn_2 is available : {is_flash_attn_2_available()}")
+    from flash_attn import flash_attn_func, flash_attn_varlen_func
+    from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
 
-#     _flash_supports_window_size = "window_size" in list(inspect.signature(flash_attn_func).parameters)
+    _flash_supports_window_size = "window_size" in list(inspect.signature(flash_attn_func).parameters)
 logger = logging.get_logger(__name__)
 
 
@@ -733,7 +733,7 @@ class Qwen2SdpaAttention(Qwen2Attention):
                 use_cache=use_cache,
             )
 
-        print(f"[llava_qwen.py] [Qwen2SdpaAttention] Attention called!")
+        #print(f"[llava_qwen.py] [Qwen2SdpaAttention] Attention called!")
 
         bsz, q_len, _ = hidden_states.size()
         kv_seq_len = hidden_states.shape[-2]
@@ -806,15 +806,15 @@ class Qwen2SdpaAttention(Qwen2Attention):
         if attention_mask is not None and attention_mask.dtype != torch.bool:
             attention_mask = attention_mask.to(torch.bool)
 
-        print(f"[llava_qwen.py] [Qwen2SdpaAttention] attention_mask.shape : {attention_mask.shape}")
+        #print(f"[llava_qwen.py] [Qwen2SdpaAttention] attention_mask.shape : {attention_mask.shape}")
         row_all_True = attention_mask.all(dim=-1)
         if row_all_True.any():
             #b, q = torch.nonzero(row_all, as_tuple=True)
             print("[llava_qwen.py] [Qwen2SdpaAtention] All masked row exists!")
 
-        print(f"[llava_qwen.py] [Qwen2SdpaAttention] q.shape : {query_states.shape}")
-        print(f"[llava_qwen.py] [Qwen2SdpaAttention] k.shape : {key_states.shape}")
-        print(f"[llava_qwen.py] [Qwen2SdpaAttention] v.shape : {value_states.shape}")
+        #print(f"[llava_qwen.py] [Qwen2SdpaAttention] q.shape : {query_states.shape}")
+        #print(f"[llava_qwen.py] [Qwen2SdpaAttention] k.shape : {key_states.shape}")
+        #print(f"[llava_qwen.py] [Qwen2SdpaAttention] v.shape : {value_states.shape}")
         
         _chk(query_states, 19)
         _chk(key_states, 20)
@@ -869,6 +869,15 @@ class Qwen2FlashAttention2(Qwen2Attention):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         output_attentions = False
 
+        # print(f"[llava_qwen.py] [Qwen2FlashAttention] Attention called!")
+
+        # print(f"[llava_qwen.py] [Qwen2FlashAttention] hidden_states.shape : {hidden_states.shape}")
+        # print(f"[llava_qwen.py] [Qwen2FlashAttention] position_ids.shape : {position_ids.shape}")
+        # try:
+        #     print(f"[llava_qwen.py] [Qwen2FlashAttention] attention_mask.shape : {attention_mask.shape}")
+        # except:
+        #     pass
+
         bsz, q_len, _ = hidden_states.size()
         kv_seq_len = hidden_states.shape[-2]
 
@@ -879,7 +888,12 @@ class Qwen2FlashAttention2(Qwen2Attention):
         else:
             past_seq_len = 0
 
+        # TODO : qkv_proj_with_beacon 함수 보자
+        #print(f"[llava_qwen.py] [Qwen2FlashAttention2] hidden_states.shape : {hidden_states.shape}")
+        #print("[llava_qwen.py] [Qwen2FlashAttention2] qkv_proj_with_beacon Called")
         query_states, key_states, value_states = self.qkv_proj_with_beacon(hidden_states, beacon_size, beacon_indices)
+        #print(f"[llava_qwen.py] [Qwen2FlashAttention2] query_states.shape : {query_states.shape}")
+        #print(f"[llava_qwen.py] [Qwen2FlashAttention] qkv_proj_with_beacon : {hidden_states.shape}")
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
@@ -887,14 +901,15 @@ class Qwen2FlashAttention2(Qwen2Attention):
 
         # return keys and values before rope
         # NOTE: incrementally return keys and values for efficiency 
-        past_key_value = (key_states, value_states, beacon_size, beacon_indices)
-
+        past_key_value = (key_states, value_states, beacon_size, beacon_indices) # auto-regresive decode를 위해 사용
+        
+        # 이전 kv를 다시 계산하지 않고 cahce를 사용. 현재 k/v와 concat 하여 사용한다.
         if past_key is not None:
             # reuse k, v, self_attention
             key_states = torch.cat([past_key, key_states], dim=2)
             value_states = torch.cat([past_value, value_states], dim=2)
 
-        query_states, key_states = self.rotary_emb(query_states, key_states, position_ids)
+        query_states, key_states = self.rotary_emb(query_states, key_states, position_ids) 
 
         # FlashAttention will automatically handle grouped query attention
         # key_states = repeat_kv(key_states, self.num_key_value_groups)
@@ -933,7 +948,8 @@ class Qwen2FlashAttention2(Qwen2Attention):
             query_states = query_states.to(target_dtype)
             key_states = key_states.to(target_dtype)
             value_states = value_states.to(target_dtype)
-
+        
+        # 실제 attention module 호출
         attn_output = self._flash_attention_forward(
             query_states, 
             key_states, 
@@ -943,8 +959,14 @@ class Qwen2FlashAttention2(Qwen2Attention):
             dropout=dropout_rate
         )
 
+        #print(f"[llava_qwen.py] [Qwen2FlashAttention] Attention output shape : {attn_output.shape}")
+
+        # contiguous()는 transpose와 같은 동작을 할 때, 메모리 상의 순서를 맞춰주는 역할을 하는 듯하다.
         attn_output = attn_output.reshape(bsz, q_len, self.hidden_size).contiguous()
+        #print(f"[llava_qwen.py] [Qwen2FlashAttention] reshape to (Batch, Len, dim) : {attn_output.shape}")
+        # output용 proj_with_beacon이 따로 있는 듯
         attn_output = self.o_proj_with_beacon(attn_output, beacon_size, beacon_indices)
+        #print(f"[llava_qwen.py] [Qwen2FlashAttention] output_qkv_proj_with_beacon : {attn_output.shape}")
 
         if not output_attentions:
             attn_weights = None
@@ -989,6 +1011,7 @@ class Qwen2FlashAttention2(Qwen2Attention):
             cu_seqlens_q, cu_seqlens_k = cu_seq_lens
             max_seqlen_in_batch_q, max_seqlen_in_batch_k = max_seq_lens
 
+            # attention 본체는 또 flash_attn_varlen_func인가?
             attn_output_unpad = flash_attn_varlen_func(
                 query_states,
                 key_states,
@@ -1003,6 +1026,8 @@ class Qwen2FlashAttention2(Qwen2Attention):
             )
 
             attn_output = pad_input(attn_output_unpad, indices_q, batch_size, query_length)
+
+            # unpad -> attention -> pad로 반환?
         else:
             attn_output = flash_attn_func(
                 query_states, key_states, value_states, dropout, softmax_scale=softmax_scale, causal=causal
@@ -1350,6 +1375,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
+
+        #print("[llava_qwen.py] [Qwen2Model] forward Called")
         # BEACON: always use cache
         use_cache = True
         # 여기서부터 보자!!
@@ -1370,39 +1397,6 @@ class Qwen2Model(Qwen2PreTrainedModel):
         # 여기서 beacon size가 0임
         # BEACON: separately embed ordinal tokens and beacon tokens because ordinal tokens do not receive gradients
         if beacon_size > 0:
-            # NOTE: when beacon_pos == "interleave", the beacon_indices points to all beacon tokens in the current window (cached activations + input_ids), so we shall slice out the part corresponding to the input_ids
-            # special_token = self.config.vocab_size -1
-            # cur_beacon_indices = beacon_indices[-input_ids.shape[1]:]
-            # ordinal_input_ids = input_ids[:, cur_beacon_indices == 0] # image indices
-            # beacon_input_ids = input_ids[:, cur_beacon_indices > 0] # beacon indices
-            # beacon_input_embeds = self.beacon_embed_tokens(beacon_input_ids - self.config.vocab_size)
-            # # create a new embedding tensor
-            # inputs_embeds = beacon_input_embeds.new_zeros(*input_ids.shape, beacon_input_embeds.shape[-1])
-            
-      
-            # inputs_embeds[:, cur_beacon_indices > 0] = beacon_input_embeds
-    
-            # # 计算 batch_size 和 seq_len
-            # batch_size, seq_len = input_ids.shape
-
-            # adjusted_image_idx=0
-            # for batch_idx in range(batch_size):
-            #     for seq_idx in range(seq_len):
-            #         if input_ids[batch_idx, seq_idx] == special_token:
-            #             # print("idx",self.image_idx+adjusted_image_idx)
-            #             # print("11",image_features[self.image_idx+adjusted_image_idx].shape)
-            #             # print("11",seq_idx,self.image_idx+adjusted_image_idx)
-            #             inputs_embeds[batch_idx, seq_idx] = image_features[self.image_idx+adjusted_image_idx]
-            #             adjusted_image_idx+=1
-
-            # count = (input_ids == special_token).sum().item()
-            # self.image_idx += count
-
-            # if self.image_idx==image_features.shape[0]:
-            #     self.image_idx=0
-
-
-
             cur_beacon_indices = beacon_indices[-input_ids.shape[1]:]
             beacon_input_ids = input_ids[:, cur_beacon_indices > 0]
             # print("input_ids",input_ids)
@@ -1435,28 +1429,9 @@ class Qwen2Model(Qwen2PreTrainedModel):
       
         else:
             inputs_embeds = self.embed_tokens(input_ids)
-    #     tensor([[[-0.0082, -0.0050,  0.0020,  ...,  0.0009,  0.0031,  0.0013],
-    #      [ 0.0024, -0.0156,  0.0183,  ..., -0.0243, -0.0066, -0.0045],
-    #      [-0.0014,  0.0018, -0.0019,  ..., -0.0005,  0.0029, -0.0035],
-    #      ...,
-    #      [ 0.0018, -0.0009,  0.0120,  ..., -0.0174,  0.0077,  0.0157],
-    #      [ 0.0018, -0.0009,  0.0120,  ..., -0.0174,  0.0077,  0.0157],
-    #      [ 0.0018, -0.0009,  0.0120,  ..., -0.0174,  0.0077,  0.0157]]],
-    #    device='cuda:1', dtype=torch.float16)
 
         # embed positions
         hidden_states = inputs_embeds
-
-        # print("------------------------------------")
-        # print("inputs_embeds",inputs_embeds.shape)
-        # print(f"input_ids:          {input_ids}")
-        # print(f"beacon_indices:     {beacon_indices}")
-        # print(f"position_ids:       {position_ids}")
-        # print(f"attention_mask:\n{attention_mask == 0}")
-        # print("------------------------------------")
-        # x = input()
-        # if x == "s":
-        #     return
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -1471,21 +1446,6 @@ class Qwen2Model(Qwen2PreTrainedModel):
             # BEACON: slice out the past_key_value of the corresponding layer
             past_key_value = past_key_values[idx] if past_key_values is not None else None
 
-
-            # attention mask =
-        #     tensor([[[[ 0.0000e+00,  0.0000e+00,  0.0000e+00,  ..., -3.3895e+38,
-        #    -3.3895e+38, -3.3895e+38],
-        #   [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  ..., -3.3895e+38,
-        #    -3.3895e+38, -3.3895e+38],
-        #   [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  ..., -3.3895e+38,
-        #    -3.3895e+38, -3.3895e+38],
-        #   ...,
-        #   [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  ...,  0.0000e+00,
-        #    -3.3895e+38, -3.3895e+38],
-        #   [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  ...,  0.0000e+00,
-        #     0.0000e+00, -3.3895e+38],
-        #   [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  ...,  0.0000e+00,
-        #     0.0000e+00,  0.0000e+00]]]], device='cuda:1', dtype=torch.bfloat16)
             if self.gradient_checkpointing and self.training:
                 layer_outputs = self._gradient_checkpointing_func(
                     decoder_layer.__call__,
@@ -1624,7 +1584,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         image_features: Optional[torch.Tensor] = None,
     ) -> Union[Tuple, BeaconModelOutput]:
         #여기
-        print("[llava_qwen.py] [LlavaQwenForCausalLM] _native_forward Called")
+        #print("[llava_qwen.py] [LlavaQwenForCausalLM] _native_forward Called")
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states)
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -1693,6 +1653,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         beacon_skip_last: Optional[int] = None,
         image_features:Optional[torch.Tensor] = None
     ):
+        #print("[llava_qwen.py] [LlavaQwenForCausalLM] _beacon_forward Called")
         # t1 = time.time()
 
         # initialize cache
@@ -1786,7 +1747,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         cache_position=None,
         ) -> Union[Tuple, CausalLMOutputWithPast]:
 
-        print("[llava_qwen.py] [LlavaQwenForCausalLM] Forward Called")
+        #print("[llava_qwen.py] [LlavaQwenForCausalLM] forward Called")
 
         # Image feature가 전달되지 않은 경우, 여기서 추출
         if image_features is None:
@@ -1797,7 +1758,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                 # print("image_features",image_features.shape)
         
         num_tokens=image_features.shape[0]
-        print(f"[llava_qwen.py] [forward] num_tokens : {num_tokens}")
+        #print(f"[llava_qwen.py] [forward] num_tokens : {num_tokens}")
 
         if -200 in input_ids:
             start_value = -200
@@ -1874,6 +1835,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             raise NotImplementedError("`inputs_embeds` is not supported")
 
         if images is not None:
+            print(f"[llava_qwen.py] [LlavaQwenForCausalLM] get_image_features Called")
             image_features=self.get_image_features(inputs, position_ids, attention_mask, None, None, images, modalities, image_sizes)
             image_features=torch.stack(image_features).squeeze(0)
             kwargs["image_features"] = image_features
@@ -1902,14 +1864,14 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
 
                 attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
                 print(f'[llava_qwen.py] [generate] attention_mask.shape : {attention_mask.shape}')
-                print(f'[llava_qwen.py] [generate] attention_mask       : {attention_mask}')
-                print(f'[llava_qwen.py] [generate] Is mask all True?    : {all(attention_mask.squeeze(0))}')
+                #print(f'[llava_qwen.py] [generate] attention_mask       : {attention_mask}')
+                #print(f'[llava_qwen.py] [generate] Is mask all True?    : {all(attention_mask.squeeze(0))}')
                 input_ids[input_ids < 0] = self.config.vocab_size-1
                 inputs=input_ids
                 # print("new_input_id",inputs)
 
         # attention_mask 뺐음 걍 generate 에서
-        return super().generate(position_ids=position_ids, inputs=inputs,beacon_skip_first=beacon_skip_first, beacon_skip_last= beacon_skip_last, **kwargs)
+        return super().generate(position_ids=position_ids, attention_mask = attention_mask, inputs=inputs,beacon_skip_first=beacon_skip_first, beacon_skip_last= beacon_skip_last, **kwargs)
 
 
     def prepare_inputs_for_generation(

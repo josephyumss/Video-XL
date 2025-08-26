@@ -1,13 +1,13 @@
 
-deepspeed videoxl/videoxl/train/train_mem.py \
+deepspeed --num_gpus 1 videoxl/videoxl/train/train_mem.py \
     --deepspeed scripts/zero2_offload.json \
-    --model_name_or_path Qwen2-7B-Instruct \
+    --model_name_or_path Qwen/Qwen2-7B-Instruct \
     --version qwen_1_5  \
-    --data_path video_traindata/anno/\{cinepine_order,bunny_695k_pure,baaicaption,cinepine_10k,gpt4o_image,gpt4o_video,nextqa,sharegpt4v\}.json \
-    --image_folder video_traindata/Bunny-v1_0-data/finetune/images \
-    --vision_tower clip-vit-large-patch14-336 \
-    --video_folder video_traindata \
-    --pretrain_mm_mlp_adapter checkpoints/pretrain/mm_projector.bin \
+    --data_path /data2/josephyumss/Video-XL/Video-XL/dataset/only_3.json \
+    --image_folder /data2/josephyumss/Video-XL/Video-XL/dataset/image \
+    --vision_tower openai/clip-vit-large-patch14-336 \
+    --video_folder /data2/josephyumss/Video-XL/Video-XL/dataset/only_3 \
+    --pretrain_mm_mlp_adapter /data2/josephyumss/Video-XL/Video-XL/checkpoints/pretrain/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
     --image_aspect_ratio anyres \
     --group_by_modality_length True \
@@ -23,7 +23,7 @@ deepspeed videoxl/videoxl/train/train_mem.py \
     --mm_use_im_patch_token False \
     --bf16 True \
     --output_dir checkpoints/videoxl_fintune_v \
-    --num_train_epochs 3 \
+    --num_train_epochs 1 \
     --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 4 \
     --gradient_accumulation_steps 8 \
@@ -39,7 +39,7 @@ deepspeed videoxl/videoxl/train/train_mem.py \
     --tf32 True \
     --model_max_length 32768 \
     --gradient_checkpointing True \
-    --dataloader_num_workers 4 \
+    --dataloader_num_workers 1 \
     --lazy_preprocess True \
     --run_name fienetune_v \
     --group_by_stride strict \
@@ -53,5 +53,5 @@ deepspeed videoxl/videoxl/train/train_mem.py \
     --beacon_ratio_mix step-random \
     --beacon_param q k v \
     --beacon_pos interleave \
-    --frames_upbound 128
+    --frames_upbound 50
 

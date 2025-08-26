@@ -48,6 +48,7 @@ class LlavaMetaModel:
         vision_tower = getattr(self, "vision_tower", None)
         if type(vision_tower) is list:
             vision_tower = vision_tower[0]
+        #print(f"[llava_arch.py] [LlavaMetaModel] vision_tower : {vision_tower}")
         return vision_tower
 
     def initialize_vision_modules(self, model_args, fsdp=None):
@@ -157,9 +158,11 @@ class LlavaMetaForCausalLM(ABC):
         pass
 
     def get_vision_tower(self):
+        print(f"[llava_arch.py] [LlavaMetaForCausalLM] get_vision_tower Called")
         return self.get_model().get_vision_tower()
 
     def get_2dPool(self, image_feature):
+        print(f"[llava_arch.py] [LlavaMetaForCausalLM] get_2dPool Called")
         height = width = self.get_vision_tower().num_patches_per_side
         num_frames, num_tokens, num_dim = image_feature.shape
         image_feature = image_feature.view(num_frames, height, width, -1)
@@ -176,6 +179,7 @@ class LlavaMetaForCausalLM(ABC):
         return image_feature
 
     def encode_images(self, images):
+        print(f"[llava_arch.py] [LlavaMetaForCausalLM] encode_images Called")
         image_features = self.get_model().get_vision_tower()(images)
         #image_features = self.get_model().vision_resampler(image_features, images=images)
         image_features = self.get_model().mm_projector(image_features)
@@ -183,6 +187,7 @@ class LlavaMetaForCausalLM(ABC):
         return image_features
 
     def encode_multimodals(self, videos_or_images, video_idx_in_batch, split_sizes=None):
+        print(f"[llava_arch.py] [LlavaMetaForCausalLM] encode_multimodals Called")
         videos_or_images_features = self.get_model().get_vision_tower()(videos_or_images)
         per_videos_or_images_features = torch.split(videos_or_images_features, split_sizes, dim=0)  # tuple, (dim_1, 576, 4096)
         all_videos_or_images_features = []
