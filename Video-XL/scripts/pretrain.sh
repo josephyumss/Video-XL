@@ -38,3 +38,4 @@ deepspeed videoxl/videoxl/train/train_mem.py \
     --run_name pretrain \
     --frames_upbound 4 \
     --pretrain True
+    

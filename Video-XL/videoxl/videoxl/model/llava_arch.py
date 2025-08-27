@@ -162,7 +162,7 @@ class LlavaMetaForCausalLM(ABC):
         return self.get_model().get_vision_tower()
 
     def get_2dPool(self, image_feature):
-        print(f"[llava_arch.py] [LlavaMetaForCausalLM] get_2dPool Called")
+        print(f"[llava_arch.py] [LlavaMetaForCausalLM] get_2dPool Called, pool mode : {self.config.mm_spatial_pool_mode}")
         height = width = self.get_vision_tower().num_patches_per_side
         num_frames, num_tokens, num_dim = image_feature.shape
         image_feature = image_feature.view(num_frames, height, width, -1)
@@ -188,8 +188,10 @@ class LlavaMetaForCausalLM(ABC):
 
     def encode_multimodals(self, videos_or_images, video_idx_in_batch, split_sizes=None):
         print(f"[llava_arch.py] [LlavaMetaForCausalLM] encode_multimodals Called")
-        videos_or_images_features = self.get_model().get_vision_tower()(videos_or_images)
+        videos_or_images_features = self.get_model().get_vision_tower()(videos_or_images) # feature 추출
+        print(f"[llava_arch.py] [LlavaMetaForCausalLM] vision tower extracted feature is : {videos_or_images_features.shape}")
         per_videos_or_images_features = torch.split(videos_or_images_features, split_sizes, dim=0)  # tuple, (dim_1, 576, 4096)
+        #print(f"[llava_arch.py] [LlavaMetaForCausalLM] Per feature is : {per_videos_or_images_features.shape}")
         all_videos_or_images_features = []
 
         for idx, feat in enumerate(per_videos_or_images_features):
@@ -198,12 +200,15 @@ class LlavaMetaForCausalLM(ABC):
             # to(device)는 synchronous copy로 작동하는데, copy가 끝날 때까지 코드가 멈추게 됨
             # non_blocking=True 조건을 통해, GPU 연산과 병렬로 copy를 실행함 (조건이 충족되면 병렬 실행)
             feat = feat.to(device, non_blocking=True) 
-            
+            print(f"[llava_arch.py] [LlavaMetaForCausalLM] mm_projector Called")
             feat = self.get_model().mm_projector(feat)
+            print(f"[llava_arch.py] [LlavaMetaForCausalLM] projection output is : {feat.shape}")
             # Post pooling
             if idx in video_idx_in_batch:
                 feat = self.get_2dPool(feat)
+            print(f"[llava_arch.py] [LlavaMetaForCausalLM] After get_2dPool, feat shape : {feat.shape}")
             all_videos_or_images_features.append(feat)
+            #print(f"[llava_arch.py] [LlavaMetaForCausalLM] feature list len : {len(all_videos_or_images_features)}")
         return all_videos_or_images_features
 
     def prepare_inputs_labels_for_multimodal(self, input_ids, position_ids, attention_mask, past_key_values, labels, images, modalities=["image"], image_sizes=None):
@@ -488,6 +493,7 @@ class LlavaMetaForCausalLM(ABC):
             split_sizes = [image.shape[0] for image in images_list]
             # print("##########",concat_images.shape) # 16,3,336,336
 
+            # 여기서 1차로 feature 뽑음 list임
             image_features = self.encode_multimodals(concat_images, video_idx_in_batch, split_sizes)    #16,144,3584
             # print("$$$$$$$$$$$",len(image_features),image_features[0].shape)
             
@@ -498,10 +504,13 @@ class LlavaMetaForCausalLM(ABC):
             if mm_patch_merge_type == "flat":
                 image_features = [x.flatten(0, 1) for x in image_features]
             
+            # 여기로 들어감
             elif mm_patch_merge_type== "unires":
                 new_image_features = []
                 for image_idx, image_feature in enumerate(image_features):
                     # rank0_print(f"Initial feature size : {image_feature.shape}")
+                    
+                    # 여기로 들어감
                     if image_idx in video_idx_in_batch:  # video operations
                         image_feature = image_feature.flatten(0, 1)
                     elif image_feature.shape[0] > 1:
@@ -532,11 +541,15 @@ class LlavaMetaForCausalLM(ABC):
                         # for text only data, there is a placeholder image feature that is actually never used. 
                         image_feature = image_feature[0]
                         # rank0_print(f"After here : {image_feature.shape}")
+                    
+                    print(f"[llava_arch.py] [LlavaMetaForCausalLM] get_image_features result is : {image_feature.shape}")
+                    
+
                     new_image_features.append(image_feature)
 
-                image_features = new_image_features
-                # print("#############")
-                # print("########",len(image_features),image_features[0].shape)  #1， 2304,3584
+                image_features = new_image_features # list
+                print(f"[llava_arch.py] [LlavaMetaForCausalLM] returns it in a list. len is : {len(image_features)}")
+
             elif mm_patch_merge_type.startswith("spatial"):
                 new_image_features = []
                 for image_idx, image_feature in enumerate(image_features):

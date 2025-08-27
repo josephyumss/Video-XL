@@ -1394,6 +1394,7 @@ class Qwen2Model(Qwen2PreTrainedModel):
 
         past_key, past_value, beacon_size, beacon_indices = past_key_values[0]
 
+        print(f"[llava_qwen.py] [Qwen2Model] beacon size is {beacon_size}")
         # 여기서 beacon size가 0임
         # BEACON: separately embed ordinal tokens and beacon tokens because ordinal tokens do not receive gradients
         if beacon_size > 0:
@@ -1432,6 +1433,8 @@ class Qwen2Model(Qwen2PreTrainedModel):
 
         # embed positions
         hidden_states = inputs_embeds
+
+        # 여기서 inputs_embeds란 text token을 임베딩한 것이다!
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -1597,7 +1600,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         # 여기서는 self() 가 아니라 self.model() 이므로 LlavaQwenForCausalLM의 forward가 호출되는 것이 아님
         # self.model = LlavaQwenModel(config) 이 instance의 forward가 호출됨
-        outputs = self.model(
+        outputs = self.model( # 이거랑
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -1610,7 +1613,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             image_features=image_features
         )
 
-#        print(f"[llava_qwen.py] [LlavaQwenForCausalLM] outputs.shape : {outputs.shape}")
+        #print(f"[llava_qwen.py] [LlavaQwenForCausalLM] outputs.shape : {outputs.shape}")
 
         hidden_states = outputs[0]
         logits = self.lm_head(hidden_states)
@@ -1628,7 +1631,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
             output = (logits,) + outputs[1:]
             return (loss,) + output if loss is not None else output
 
-        return BeaconModelOutput(
+        return BeaconModelOutput( #이거보자
             loss=loss,
             batch_loss=batch_loss,
             valid_token_num=valid_token_num,
@@ -1751,14 +1754,14 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
 
         # Image feature가 전달되지 않은 경우, 여기서 추출
         if image_features is None:
-            print(f"[llava_qwen.py] [LlavaQwenForCausalLM] input_ids.shape : {input_ids.shape}")
+            print(f"[llava_qwen.py] [LlavaQwenForCausalLM] (prompt) input_ids.shape : {input_ids.shape}")
             if input_ids.shape[1] != 1:
                 image_features=self.get_image_features(input_ids, position_ids, attention_mask, past_key_values, labels, images, modalities, image_sizes)[0]
-                print(f"[llava_qwen.py] [forward] image_features.shape : {image_features.shape}")
+                print(f"[llava_qwen.py] [LlavaQwenForCausalLM] image_features.shape : {image_features.shape}")
                 # print("image_features",image_features.shape)
         
         num_tokens=image_features.shape[0]
-        #print(f"[llava_qwen.py] [forward] num_tokens : {num_tokens}")
+        print(f"[llava_qwen.py] [LlavaQwenForCausalLM] num_tokens : {num_tokens}")
 
         if -200 in input_ids:
             start_value = -200
@@ -1769,17 +1772,14 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                     ignore_labels = torch.full((1, num_tokens), -100, device=labels.device, dtype=labels.dtype)
                     before_labels = labels[:, :insert_index]
                     after_labels = labels[:, insert_index + 1:]
-                    labels = torch.cat((before_labels, ignore_labels, after_labels), dim=1)
+                    labels = torch.cat((before_labels, ignore_labels, after_labels), dim=1) 
+                    # image token에 해당하는 부분은 제외(ignore_labels로 대체)하여 labels 구성
 
                 before_input_ids = input_ids[:, :insert_index]
                 after_input_ids = input_ids[:, insert_index + 1:]
                 input_ids = torch.cat((before_input_ids, negative_tokens.unsqueeze(0), after_input_ids), dim=1)
-                attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
-            input_ids[input_ids < 0] = self.config.vocab_size-1
-        # print("new_input_id",input_ids)
-        # print("new_labels",labels)
-        # count = (input_ids == 152063).sum().item()
-        # print("num_tokens",num_tokens,count)
+                attention_mask = torch.ones_like(input_ids, dtype=torch.bool) # attention mask도 image 위치는 가림
+            input_ids[input_ids < 0] = self.config.vocab_size-1 # input id도 가리는 듯?
 
         if beacon_skip_first is None:
             beacon_skip_first=14
@@ -1800,7 +1800,7 @@ class LlavaQwenForCausalLM(Qwen2ForCausalLM, LlavaMetaForCausalLM):
                                             output_hidden_states,
                                             return_dict)
             else:
-        
+                # feature 뽑고 beacon_forward
                 return self._beacon_forward(input_ids,
                                             attention_mask,
                                             position_ids,

@@ -1125,6 +1125,11 @@ class LazySupervisedDataset(Dataset):
         for attempt_idx in range(num_base_retries):
             try:
                 sample = self._get_item(i)
+                print(f"[train.py] _getitem_ Called")
+                try:
+                    print(f"[train.py] Current Sample shape: {sample['image'][0][0].shape}") # Dict
+                except :
+                    print("[train.py] error on printing sample")
                 return sample
             except Exception as e:
                 # sleep 1s in case it is a cloud disk issue
@@ -1172,45 +1177,16 @@ class LazySupervisedDataset(Dataset):
                 print("File {} not exist!".format(video_file))
 
             try:
-                video = process_video_with_pyav(video_file, self.data_args)
-                # using videoreader
-                # if "shareVideoGPTV" not in video_file and "liangke" not in video_file:
-                # vr = VideoReader(video_file, ctx=cpu(0))
-                # total_frame_num = len(vr)
-                # avg_fps = round(vr.get_avg_fps() / self.data_args.video_fps)
-                # frame_idx = [i for i in range(0, total_frame_num, avg_fps)]
-                # if self.data_args.frames_upbound > 0:
-                #     if len(frame_idx) > self.data_args.frames_upbound:
-                #         uniform_sampled_frames = np.linspace(0, total_frame_num - 1, self.data_args.frames_upbound, dtype=int)
-                #         frame_idx = uniform_sampled_frames.tolist()
-                # video = vr.get_batch(frame_idx).asnumpy()
-                # video = np.array(video)
-                # else:
-                #     if "liangke" in video_file:
-                #         video_file = self.list_data_dict[i]["video"]
-                #     frame_files = [os.path.join(video_file, f) for f in os.listdir(video_file) if os.path.isfile(os.path.join(video_file, f))]
-                #     frame_files.sort()  # Ensure the frames are sorted if they are named sequentially
-
-                #     # TODO: Hard CODE: Determine the indices for uniformly sampling 10 frames
-                #     num_frames_to_sample = 10
-                #     total_frames = len(frame_files)
-                #     sampled_indices = np.linspace(0, total_frames - 1, num_frames_to_sample, dtype=int)
-
-                #     # Read and store the sampled frames
-                #     video = []
-                #     for idx in sampled_indices:
-                #         frame_path = frame_files[idx]
-                #         try:
-                #             with Image.open(frame_path) as img:
-                #                 frame = img.convert("RGB")
-                #                 video.append(frame)
-                #         except IOError:
-                #             print(f"Failed to read frame at path: {frame_path}")
-
+                video = process_video_with_pyav(video_file, self.data_args) # video의 frame을 sampling, nd.array 변환, stack하여 반환
+                print(f"[train.py] Input Video -> Sample Frame -> nd.array -> Stack")
+                print(f"[train.py] Output Video shape : {video.shape}")
                 processor = self.data_args.image_processor
                 image = processor.preprocess(video, return_tensors="pt")["pixel_values"]
+                print(f"[train.py] Preprocess video by image_processor")
+                print(f"[train.py] output shape : {image.shape}")
                 image = [(image, video[0].size, "video")]
-                sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args)
+                sources = preprocess_multimodal(copy.deepcopy([e["conversations"] for e in sources]), self.data_args) # <image> token의 위치 정규화 등 format 통일
+                
             except Exception as e:
                 print(f"Error: {e}")
                 print(f"Failed to read video file: {video_file}")
@@ -1250,7 +1226,10 @@ class LazySupervisedDataset(Dataset):
 
 
 @dataclass
-class DataCollatorForSupervisedDataset(object):
+class DataCollatorForSupervisedDataset(object): 
+    # Dataset Class는 개별 item을 __getitem__으로 불러오지만 batch 구성은 못함. 
+    # 개별 item들의 길이가 다르기 때문에 stack을 못하기 때문이다.
+    # DataCollator Class가 padding, stack 과정을 처리하여 여러 개의 sample을 하나의 batch로 구성한다.
     """Collate examples for supervised fine-tuning."""
 
     tokenizer: transformers.PreTrainedTokenizer
@@ -1259,6 +1238,10 @@ class DataCollatorForSupervisedDataset(object):
         if self.tokenizer.padding_side == "left":
             input_ids = [torch.flip(_input_ids, [0]) for _input_ids in input_ids]
         input_ids = torch.nn.utils.rnn.pad_sequence(input_ids, batch_first=batch_first, padding_value=padding_value)
+        # pad_sequence : 최대 length로 맞춘다.
+        # batch_first : output의 shape을 (Batch, Len, *)로 할지, (Len, Batch, *)로 할지 설정. True면 Batch가 먼저 오며, 대부분 모델들이 이 방식을 사용
+        # padding_value : padding을 어떤 value로 채울 것인지 설정
+
         if self.tokenizer.padding_side == "left":
             input_ids = torch.flip(input_ids, [1])
         return input_ids
@@ -1286,7 +1269,7 @@ class DataCollatorForSupervisedDataset(object):
             if all(x is not None and x.shape == images[0].shape for x in images):
                 # Image: (N, P, C, H, W)
                 # Video: (N, F, C, H, W)
-                batch["images"] = torch.stack(images)
+                batch["images"] = torch.stack(images) # batch 생성
             else:
                 batch["images"] = images
 
@@ -1308,6 +1291,7 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
     if training_args.attn_implementation == "sdpa" and torch.__version__ < "2.1.2":
         raise ValueError("The 'sdpa' attention implementation requires torch version 2.1.2 or higher.")
 
+    print(f"[train.py] attn_implementation : {training_args.attn_implementation}")
     customized_kwargs = dict()
     customized_kwargs.update(bnb_model_from_pretrained_args)
     cfg_pretrained = None
@@ -1478,13 +1462,13 @@ def get_model(model_args, training_args, bnb_model_from_pretrained_args):
     return model
 
 
-
+# 여기
 def train(attn_implementation=None):
     global local_rank
 
     parser = transformers.HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
-  
+
 
     training_args.gradient_checkpointing_kwargs={"use_reentrant": False}
     training_args.group_by_stride="strict"
@@ -1522,6 +1506,7 @@ def train(attn_implementation=None):
         )
 
     model = get_model(model_args, training_args, bnb_model_from_pretrained_args)
+    print(f"[train.py] model : {model}")
     model.config.use_cache = False
     if model_args.rope_scaling_factor is not None and model_args.rope_scaling_type is not None:
         model.config.rope_scaling = {
@@ -1571,6 +1556,7 @@ def train(attn_implementation=None):
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="left")
     elif "qwen" in model_args.model_name_or_path.lower():
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_args.model_name_or_path, cache_dir=training_args.cache_dir, model_max_length=training_args.model_max_length, padding_side="right")
+        print(f"[train.py] tokenizer : {tokenizer}")   
     elif (
         "wizardlm-2" in model_args.model_name_or_path.lower()
         or "vicuna" in model_args.model_name_or_path.lower()
@@ -1609,10 +1595,13 @@ def train(attn_implementation=None):
         model.get_model().initialize_vision_modules(model_args=model_args, fsdp=training_args.fsdp)
 
         vision_tower = model.get_vision_tower()
+        print(f"[train.py] vision_tower : {vision_tower}")
         vision_tower.to(dtype=torch.bfloat16 if training_args.bf16 else torch.float16, device=training_args.device)
 
         data_args.image_processor = vision_tower.image_processor
         data_args.is_multimodal = True
+
+        print(f"[train.py] image_processor : {vision_tower.image_processor}")
 
         model.config.image_aspect_ratio = data_args.image_aspect_ratio
         if data_args.image_grid_pinpoints is not None:
@@ -1723,7 +1712,8 @@ def train(attn_implementation=None):
                         module = module.to(torch.bfloat16)
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
-
+    print(f"[train.py] data_module : {data_module}")
+    
     if training_args.pretrain:
         trainer = Pre_LLaVATrainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
 

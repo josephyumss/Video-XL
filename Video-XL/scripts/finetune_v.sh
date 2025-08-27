@@ -1,5 +1,5 @@
 
-deepspeed --num_gpus 1 videoxl/videoxl/train/train_mem.py \
+deepspeed videoxl/videoxl/train/train_mem.py \
     --deepspeed scripts/zero2_offload.json \
     --model_name_or_path Qwen/Qwen2-7B-Instruct \
     --version qwen_1_5  \
@@ -54,4 +54,4 @@ deepspeed --num_gpus 1 videoxl/videoxl/train/train_mem.py \
     --beacon_param q k v \
     --beacon_pos interleave \
     --frames_upbound 50
-
+    

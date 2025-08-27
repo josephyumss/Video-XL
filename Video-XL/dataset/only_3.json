@@ -1,0 +1,44 @@
+[
+    {
+        "id": "v__9v34KLET0g",
+        "video": "vqa/Activity_Videos/v__9v34KLET0g.mp4",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "<image>\nCan you describe the step-by-step process of creating the cocktail in the video in detail?"
+            },
+            {
+                "from": "gpt",
+                "value": "In the video, a man dressed in a dark suit and white shirt, positioned behind a table, begins by introducing various cocktail ingredients and equipment placed on the table. He starts by cutting a lime with a knife and placing ice into a glass. Next, he pours a green spirit into the glass, adds mint leaves, and gently muddles the mint to release its oils. The man stirs and shakes the ingredients using a silver shaker, demonstrating precise cocktail mixing skills. Additionally, he carefully pours a colorless liquid into another glass with ice and mint leaves. Finally, he juices a lime into the mixed drink, ensuring all elements are well-combined before presenting the cocktail to the camera."
+            }
+        ]
+    },
+    {
+        "id": "v__6TamBiyYWA",
+        "video": "vqa/Activity_Videos/v__6TamBiyYWA.mp4",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "<image>\nCan you describe the entire video in detail from start to finish?"
+            },
+            {
+                "from": "gpt",
+                "value": "In the video, a middle-aged man with short, dark hair stands before a backdrop displaying multiple archery targets. He wears a dark-colored polo shirt with a logo featuring a red circle, a yellow star, and a blue banner. The targets are arranged in a row with concentric circles in colors like red, blue, and yellow, numbered from 1 to 9 for scoring. The man is engaged in explaining, with varying facial expressions, indicating interactive storytelling. Meanwhile, a woman in a black sleeveless top is shown holding an archery set. She focuses, pulls back an arrow, and aims at a target in a dimly lit setting. As the man talks about archery basics, the woman releases the arrow, showcasing practical demonstration."
+            }
+        ]
+    },
+    {
+        "id": "v__86X1xtj67w",
+        "video": "vqa/Activity_Videos/v__86X1xtj67w.mp4",
+        "conversations": [
+            {
+                "from": "human",
+                "value": "<image>\nCan you describe the entire video in detail from start to finish?"
+            },
+            {
+                "from": "gpt",
+                "value": "The video depicts an indoor dodgeball game set in a well-lit sports facility with natural light coming in through large windows. The spacious court has vibrant green flooring contrasted against plain white walls. Two teams, each consisting of multiple players in gray jerseys, are energetically engaged in gameplay. The game commences with two boys from one team swiftly approaching the center line to grab balls and throw them at the opposing team. After making their throws, they retreat to their side. Following this, the other team advances, with a player in a purple t-shirt standing out, successfully hitting an opponent with a ball. The teams take turns advancing to the center to throw, swiftly returning to their positions, maintaining a quick pace. Off the court, individuals assist by providing and collecting balls for the players, who continuously aim to hit opponents while dodging incoming throws. The gameplay continues with strategic throws and dodges until the end of the video."
+            }
+        ]
+    }
+]

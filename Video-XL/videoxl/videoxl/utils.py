@@ -23,8 +23,12 @@ except ImportError:
 
 
 def process_video_with_pyav(video_file, data_args):
-    container = av.open(video_file)
+    container = av.open(video_file) # video 파일을 PyAV 컨테이너로 불러옴
+    # mp4, avi, mkv 등은 byte 덩어리가 아니라, 여러 종류의 data가 합쳐진 것임
+    # 따라서 container 형태로 저장되는데, 이를 PyAV 객체로 불러온 것이다.
     stream = container.streams.video[0]
+    # 불러온 container는 video, audio, caption 등 다양한 stream이 존재함
+    # 그중 첫 번째 stream인 video stream만 가져오는 것이다.
     total_frame_num = stream.frames
     avg_fps = round(stream.average_rate / data_args.video_fps)
     frame_idx = [i for i in range(0, total_frame_num, avg_fps)]
@@ -36,7 +40,7 @@ def process_video_with_pyav(video_file, data_args):
     video_frames = []
     for index, frame in enumerate(container.decode(video=0)):
         if index in frame_idx:
-            video_frames.append(frame.to_rgb().to_ndarray())
+            video_frames.append(frame.to_rgb().to_ndarray()) # 각 frame을 nd.array로 변환하여 stack 반환
             if len(video_frames) == len(frame_idx):  # Stop decoding once we have all needed frames
                 break
 

@@ -3,8 +3,8 @@ deepspeed videoxl/videoxl/train/train_mem.py \
     --deepspeed scripts/zero2.json \
     --model_name_or_path Qwen2-7B-Instruct \
     --version qwen_1_5  \
-    --data_path video_traindata/anno/bunny_695k_pure.json \
-    --image_folder video_traindata/Bunny-v1_0-data/finetune/images \
+    --data_path /data2/josephyumss/Video-XL/Video-XL/dataset/vcg_20k.json \
+    --image_folder /data2/josephyumss/Video-XL/Video-XL/dataset/image \
     --vision_tower clip-vit-large-patch14-336 \
     --pretrain_mm_mlp_adapter checkpoints/pretrain/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
